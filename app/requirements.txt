@@ -3,3 +3,4 @@ httpx
 uvicorn[standard]
 SQLAlchemy[asyncio]
 aiomysql
+gunicorn
