@@ -35,7 +35,7 @@ services:
       - "8008:80"
     restart: always
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     container_name: tg-bot-ex-rate-nginx
 
 volumes:

@@ -1,11 +1,12 @@
 import os
 import httpx
-from fastapi import FastAPI, Request, HTTPException , APIRouter
+from fastapi import FastAPI, Request, HTTPException , APIRouter, Depends
 from datetime import datetime, timezone, timedelta
 
 from db import engine, Base, get_session
 from models import User, FxRate
 from sqlalchemy import select, insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 class App():
     def __init__(self):
