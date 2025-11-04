@@ -12,6 +12,7 @@ class App():
     def __init__(self):
         self.BOT_TOKEN = os.environ["BOT_TOKEN"]        
         self.TG_SECRET = os.environ.get("TG_SECRET", "")  
+        self.CUR_TOKEN = os.environ["CUR_TOKEN"]
         self.API = f"https://api.telegram.org/bot{self.BOT_TOKEN}"
         self.ADMIN_ID = int(os.environ.get("ADMIN_ID", "0"))
         self.app = FastAPI()
@@ -86,15 +87,15 @@ class App():
 
     async def ex_rate(self , is_cron: bool = False) -> str:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get("https://api.exchangerate-api.com/v4/latest/KZT")
+            resp = await client.get(f"https://v6.exchangerate-api.com/v6/{self.CUR_TOKEN}/latest/KZT")
             btc_resp = await client.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
             data = resp.json()
 
             utc5= timezone(timedelta(hours=5))
-            date = datetime.fromtimestamp(data.get("time_last_updated"),utc5)
-            usd_rate = 1 / data["rates"].get("USD")
-            eur_rate = 1 / data["rates"].get("EUR")
-            rub_rate = 1 / data["rates"].get("RUB")
+            date = datetime.fromtimestamp(data.get("time_last_update_unix"),utc5)
+            usd_rate = 1 / data["conversion_rates"].get("USD")
+            eur_rate = 1 / data["conversion_rates"].get("EUR")
+            rub_rate = 1 / data["conversion_rates"].get("RUB")
 
             if is_cron:
                 async with engine.begin() as conn:
@@ -109,10 +110,10 @@ class App():
                     )
 
             message = f"Today's exchange rates ({date}) :\n" \
-                      f"🇺🇸 1 USD = {usd_rate} KZT 🇰🇿\n" \
-                      f"🇪🇺 1 EUR = {eur_rate} KZT 🇰🇿\n" \
-                      f"🇷🇺 1 RUB = {rub_rate} KZT 🇰🇿\n\n" \
-                      f"₿ 1 BTC = {btc_resp.json().get('bitcoin').get('usd')} USD🇺🇸"
+                      f"🇺🇸 1 USD = {usd_rate:.2f} KZT 🇰🇿\n" \
+                      f"🇪🇺 1 EUR = {eur_rate:.2f} KZT 🇰🇿\n" \
+                      f"🇷🇺 1 RUB = {rub_rate:.2f} KZT 🇰🇿\n\n" \
+                      f"₿ 1 BTC = {btc_resp.json().get('bitcoin').get('usd')} USD 🇺🇸"
             
             return message
     
