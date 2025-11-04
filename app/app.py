@@ -92,9 +92,9 @@ class App():
 
             utc5= timezone(timedelta(hours=5))
             date = datetime.fromtimestamp(data.get("time_last_updated"),utc5)
-            usd_rate = data["rates"].get("USD")
-            eur_rate = data["rates"].get("EUR")
-            rub_rate = data["rates"].get("RUB")
+            usd_rate = 1 / data["rates"].get("USD")
+            eur_rate = 1 / data["rates"].get("EUR")
+            rub_rate = 1 / data["rates"].get("RUB")
 
             if is_cron:
                 async with engine.begin() as conn:
@@ -109,9 +109,9 @@ class App():
                     )
 
             message = f"Today's exchange rates ({date}) :\n" \
-                      f"🇰🇿 1 KZT = {usd_rate} USD🇺🇸\n" \
-                      f"🇰🇿 1 KZT = {eur_rate} EUR🇪🇺\n" \
-                      f"🇰🇿 1 KZT = {rub_rate} RUB🇷🇺\n" \
+                      f"🇺🇸 1 USD = {usd_rate} KZT 🇰🇿\n" \
+                      f"🇪🇺 1 EUR = {eur_rate} KZT 🇰🇿\n" \
+                      f"🇷🇺 1 RUB = {rub_rate} KZT 🇰🇿\n\n" \
                       f"₿ 1 BTC = {btc_resp.json().get('bitcoin').get('usd')} USD🇺🇸"
             
             return message
