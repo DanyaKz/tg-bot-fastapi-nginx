@@ -22,6 +22,5 @@ class FxRate(Base):
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
-        UniqueConstraint("base", "quote", "as_of", name="uq_fx_snapshot"),
         Index("ix_fx_base_quote_asof", "base", "quote", "as_of"),
     )
