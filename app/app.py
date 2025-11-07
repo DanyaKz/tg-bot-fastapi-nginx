@@ -125,8 +125,8 @@ class App():
             raise RuntimeError("DB not initialized")
         async with SessionLocal() as session:
             async with session.begin():
-                session.add(FxRate(base="KZT", quote="USD", rate=ex_rate['usd_rate'], as_of=ex_rate['date']))
-                session.add(FxRate(base="KZT", quote="EUR", rate=ex_rate['eur_rate'], as_of=ex_rate['date']))
-                session.add(FxRate(base="KZT", quote="RUB", rate=ex_rate['rub_rate'], as_of=ex_rate['date']))
+                session.add(FxRate(base="KZT", quote="USD", rate=ex_rate['usd_rate'], as_of=datetime.fromisoformat(ex_rate['date'])))
+                session.add(FxRate(base="KZT", quote="EUR", rate=ex_rate['eur_rate'], as_of=datetime.fromisoformat(ex_rate['date'])))
+                session.add(FxRate(base="KZT", quote="RUB", rate=ex_rate['rub_rate'], as_of=datetime.fromisoformat(ex_rate['date'])))
 
 app = App().app
