@@ -3,7 +3,7 @@ import httpx
 from fastapi import FastAPI, Request, HTTPException , APIRouter, Depends
 from datetime import datetime, timezone, timedelta
 
-from db import engine, Base, get_session
+from db import init_engine_and_sessionmaker, get_engine, dispose_engine, Base, get_session, get_sessionmaker
 from models import User, FxRate
 from sqlalchemy import select, insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,10 +23,16 @@ class App():
         r.get("/cron")(self.cron_job)
         self.app.include_router(r)
         self.app.on_event("startup")(self.on_startup)
+        self.app.on_event("shutdown")(self.on_shutdown)
 
     async def on_startup(self):
+        init_engine_and_sessionmaker(echo=False)
+        engine = get_engine()
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+    async def on_shutdown(self):
+        await dispose_engine()
 
     async def webhook(self, secret: str, request: Request , session: AsyncSession = Depends(get_session)):
         
@@ -85,7 +91,7 @@ class App():
                             json={"chat_id": chat_id, "text": welcome_message, "reply_markup": buttons})
             
 
-    async def ex_rate(self , is_cron: bool = False) -> str:
+    async def ex_rate(self , is_cron: bool = False) -> dict:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(f"https://v6.exchangerate-api.com/v6/{self.CUR_TOKEN}/latest/KZT")
             btc_resp = await client.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
@@ -97,29 +103,30 @@ class App():
             eur_rate = 1 / data["conversion_rates"].get("EUR")
             rub_rate = 1 / data["conversion_rates"].get("RUB")
 
-            if is_cron:
-                async with engine.begin() as conn:
-                    await conn.execute(
-                        insert(FxRate).values(base="KZT", quote="USD", rate=usd_rate, as_of=date)
-                    )
-                    await conn.execute(
-                        insert(FxRate).values(base="KZT", quote="EUR", rate=eur_rate, as_of=date)
-                    )
-                    await conn.execute(
-                        insert(FxRate).values(base="KZT", quote="RUB", rate=rub_rate, as_of=date)
-                    )
-
             message = f"Today's exchange rates ({date}) :\n" \
-                      f"🇺🇸 1 USD = {usd_rate:.2f} KZT 🇰🇿\n" \
-                      f"🇪🇺 1 EUR = {eur_rate:.2f} KZT 🇰🇿\n" \
-                      f"🇷🇺 1 RUB = {rub_rate:.2f} KZT 🇰🇿\n\n" \
-                      f"₿ 1 BTC = {btc_resp.json().get('bitcoin').get('usd')} USD 🇺🇸"
+                    f"🇺🇸 1 USD = {usd_rate:.2f} KZT 🇰🇿\n" \
+                    f"🇪🇺 1 EUR = {eur_rate:.2f} KZT 🇰🇿\n" \
+                    f"🇷🇺 1 RUB = {rub_rate:.2f} KZT 🇰🇿\n\n" \
+                    f"₿ 1 BTC = {btc_resp.json().get('bitcoin').get('usd')} USD 🇺🇸"
             
-            return message
+            return {"usd_rate": usd_rate, "eur_rate": eur_rate, "rub_rate": rub_rate, "message": message, "date": date, "btc_resp": btc_resp}
     
     async def cron_job(self):
         async with httpx.AsyncClient(timeout=10) as client:
-            await client.post(f"{self.API}/sendMessage",
-                            json={"chat_id": self.ADMIN_ID, "text": await self.ex_rate(True)})
-    
+            ex_rate = await self.ex_rate()
+            for user in self.ADMIN_ID.split(","):
+                await client.post(f"{self.API}/sendMessage",
+                                json={"chat_id": user, "text": ex_rate["message"]})
+            await self.write_fx_rate(ex_rate)
+
+    async def write_fx_rate(self, ex_rate: dict ):
+        SessionLocal = get_sessionmaker()
+        if SessionLocal is None:
+            raise RuntimeError("DB not initialized")
+        async with SessionLocal() as session:
+            async with session.begin():
+                session.add(FxRate(base="KZT", quote="USD", rate=ex_rate['usd_rate'], as_of=ex_rate['date']))
+                session.add(FxRate(base="KZT", quote="EUR", rate=ex_rate['eur_rate'], as_of=ex_rate['date']))
+                session.add(FxRate(base="KZT", quote="RUB", rate=ex_rate['rub_rate'], as_of=ex_rate['date']))
+
 app = App().app
