@@ -14,7 +14,7 @@ class App():
         self.TG_SECRET = os.environ.get("TG_SECRET", "")  
         self.CUR_TOKEN = os.environ["CUR_TOKEN"]
         self.API = f"https://api.telegram.org/bot{self.BOT_TOKEN}"
-        self.ADMIN_ID = int(os.environ.get("ADMIN_ID", "0"))
+        self.ADMIN_ID = os.environ.get("ADMIN_ID", "0")
         self.app = FastAPI()
 
         r = APIRouter()
