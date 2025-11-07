@@ -66,7 +66,7 @@ class App():
             ex_message = await self.ex_rate()
             async with httpx.AsyncClient(timeout=10) as client:
                 await client.post(f"{self.API}/sendMessage",
-                                json={"chat_id": chat_id, "text": ex_message})
+                                json={"chat_id": chat_id, "text": ex_message["message"]})
 
         return {"ok": True}
 
@@ -91,7 +91,7 @@ class App():
                             json={"chat_id": chat_id, "text": welcome_message, "reply_markup": buttons})
             
 
-    async def ex_rate(self , is_cron: bool = False) -> dict:
+    async def ex_rate(self) -> dict:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(f"https://v6.exchangerate-api.com/v6/{self.CUR_TOKEN}/latest/KZT")
             btc_resp = await client.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
@@ -109,7 +109,7 @@ class App():
                     f"🇷🇺 1 RUB = {rub_rate:.2f} KZT 🇰🇿\n\n" \
                     f"₿ 1 BTC = {btc_resp.json().get('bitcoin').get('usd')} USD 🇺🇸"
             
-            return {"usd_rate": usd_rate, "eur_rate": eur_rate, "rub_rate": rub_rate, "message": message, "date": date, "btc_resp": btc_resp}
+            return {"usd_rate": usd_rate, "eur_rate": eur_rate, "rub_rate": rub_rate, "message": message, "date": str(date)}
     
     async def cron_job(self):
         async with httpx.AsyncClient(timeout=10) as client:
