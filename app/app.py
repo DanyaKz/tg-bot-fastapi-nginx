@@ -1,9 +1,11 @@
 import os
+from venv import logger
 import httpx
 from fastapi import FastAPI, Request, HTTPException , APIRouter, Depends
 from datetime import datetime, timezone, timedelta
+from contextlib import asynccontextmanager
 
-from db import init_engine_and_sessionmaker, get_engine, dispose_engine, Base, get_session, get_sessionmaker
+from db import init_engine_and_sessionmaker, get_engine, dispose_engine, Base, get_session
 from models import User, FxRate
 from sqlalchemy import select, insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,22 +19,32 @@ class App():
         self.ADMIN_ID = os.environ.get("ADMIN_ID", "0")
         self.app = FastAPI()
 
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            init_engine_and_sessionmaker(echo=False)
+            engine = get_engine()
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            yield
+            await dispose_engine()
+
+        self.app = FastAPI(lifespan=lifespan)
+
         r = APIRouter()
         r.post("/webhook/{secret}")(self.webhook)
         r.get("/healthz")(self.healthz)
         r.get("/cron")(self.cron_job)
         self.app.include_router(r)
-        self.app.on_event("startup")(self.on_startup)
-        self.app.on_event("shutdown")(self.on_shutdown)
 
-    async def on_startup(self):
-        init_engine_and_sessionmaker(echo=False)
-        engine = get_engine()
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+    
+    # async def on_startup(self):
+    #     init_engine_and_sessionmaker(echo=False)
+    #     engine = get_engine()
+    #     async with engine.begin() as conn:
+    #         await conn.run_sync(Base.metadata.create_all)
 
-    async def on_shutdown(self):
-        await dispose_engine()
+    # async def on_shutdown(self):
+    #     await dispose_engine()
 
     async def webhook(self, secret: str, request: Request , session: AsyncSession = Depends(get_session)):
         
@@ -111,22 +123,24 @@ class App():
             
             return {"usd_rate": usd_rate, "eur_rate": eur_rate, "rub_rate": rub_rate, "message": message, "date": str(date)}
     
-    async def cron_job(self):
+    async def cron_job(self , session: AsyncSession = Depends(get_session)):
         async with httpx.AsyncClient(timeout=10) as client:
             ex_rate = await self.ex_rate()
             for user in self.ADMIN_ID.split(","):
                 await client.post(f"{self.API}/sendMessage",
                                 json={"chat_id": user, "text": ex_rate["message"]})
-            await self.write_fx_rate(ex_rate)
+            await self.write_fx_rate(ex_rate , session=session)
 
-    async def write_fx_rate(self, ex_rate: dict ):
-        SessionLocal = get_sessionmaker()
-        if SessionLocal is None:
-            raise RuntimeError("DB not initialized")
-        async with SessionLocal() as session:
-            async with session.begin():
-                session.add(FxRate(base="KZT", quote="USD", rate=ex_rate['usd_rate'], as_of=datetime.fromisoformat(ex_rate['date'])))
-                session.add(FxRate(base="KZT", quote="EUR", rate=ex_rate['eur_rate'], as_of=datetime.fromisoformat(ex_rate['date'])))
-                session.add(FxRate(base="KZT", quote="RUB", rate=ex_rate['rub_rate'], as_of=datetime.fromisoformat(ex_rate['date'])))
+    async def write_fx_rate(self, ex_rate: dict , session: AsyncSession):
+        ex_rate['date'] = datetime.fromisoformat(ex_rate['date'])
+        
+        async with session.begin():
+            session.add_all([
+                FxRate(base="KZT", quote="USD", rate=ex_rate['usd_rate'], as_of=ex_rate['date']),
+                FxRate(base="KZT", quote="EUR", rate=ex_rate['eur_rate'], as_of=ex_rate['date']),
+                FxRate(base="KZT", quote="RUB", rate=ex_rate['rub_rate'], as_of=ex_rate['date'])
+            ])
+        
+
 
 app = App().app
