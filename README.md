@@ -72,7 +72,7 @@ fi
 ```
 
 
-- Explanation:
+# Explanation:
 
 - ngrok creates a public HTTPS URL used to register the webhook with Telegram.
 - The local server accepts HTTP requests on port 8008, and ngrok proxies them over HTTPS.
@@ -108,7 +108,4 @@ This job triggers the internal endpoint every morning at 2:00 AM to send the cur
 - Consider using a permanent HTTPS proxy or certificates for your own server to avoid dependency on ngrok.
 - Document and automate service deployment with Docker and systemd.
 
----
-
-If assistance with formatting specific sections or detailed documentation is needed, help can be provided.
 
