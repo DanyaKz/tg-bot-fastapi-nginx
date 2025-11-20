@@ -127,8 +127,11 @@ class App():
         async with httpx.AsyncClient(timeout=10) as client:
             ex_rate = await self.ex_rate()
             for user in self.ADMIN_ID.split(","):
-                await client.post(f"{self.API}/sendMessage",
+                try :
+                    await client.post(f"{self.API}/sendMessage",
                                 json={"chat_id": user, "text": ex_rate["message"]})
+                except Exception as e:
+                    logger.error(f"Failed to send cron message to {user}: {e}")
             await self.write_fx_rate(ex_rate , session=session)
 
     async def write_fx_rate(self, ex_rate: dict , session: AsyncSession):
